@@ -1,7 +1,12 @@
 import * as functions from 'firebase-functions'
 import TelegramBot = require('node-telegram-bot-api')
 import admin = require('firebase-admin')
-admin.initializeApp()
+
+//Initialize database manually since automatic Google Credentials retrieval doesn't work. See https://stackoverflow.com/questions/58127896/error-could-not-load-the-default-credentials-firebase-function-to-firestore
+var serviceAccount = require("../serviceAccountKey.json")
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+})
 
 const db = admin.firestore()
 
@@ -23,7 +28,7 @@ bot.onText(new RegExp(/\/start/), (msg: TelegramBot.Message) => {
 
     bot.sendMessage(
         msg.chat.id,
-        `HEYOO Welcome ${msg.from?.first_name}! To get started /create or /join a domain. Once you are in a domain you will be able to target groups to forward your messages to.`,
+        `Welcome ${msg.from?.first_name}! To get started /create or /join a domain. Once you are in a domain you will be able to target groups to forward your messages to.`,
         options
     ).catch(err => console.log(err))
 })
@@ -33,32 +38,37 @@ bot.onText(new RegExp(/\/create/), async (msg: TelegramBot.Message) => {
 
     await contextRef.set({
         context: 'create-domain',
-        scope: 'domain-handle-requested',
-        timestamp: admin.firestore.Timestamp.now()
+        scope: 'domain-handle-requested'
     })
     
-    await bot.sendMessage(msg.chat.id, `Specify an handle for your domain. It must be a text with only lowercase characters or digits.`)
-
+    await bot.sendMessage(msg.chat.id, `I need an handle for your domain, a text with only lowercase letters or digits, for example "pluto42". Type /cancel if you changed your mind. What's it going to be?`)
 })
 
-function handleContextMessage(context: any, msg: TelegramBot.Message){
 
+bot.onText(new RegExp(/\/cancel/), async (msg: TelegramBot.Message) => {
+    const contextRef = db.collection('contexts').doc(msg.chat.id.toString())
+
+    await contextRef.delete()
+    
+    await bot.sendMessage(msg.chat.id, `I'm right here if you need anything.`)
+})
+
+
+async function handleContextMessage(context: any, msg: TelegramBot.Message){
+    console.log(context)
 }
 
-bot.on("message", async (msg: TelegramBot.Message, metadata) => {
-
+//Only match messages that are not commands
+bot.onText(new RegExp(/^[^\/].*/), async (msg: TelegramBot.Message, metadata) => {
     const contextRef = db.collection('contexts').doc(msg.chat.id.toString())
 
     const contextDoc = await contextRef.get()
 
     if (contextDoc.exists){
-        console.log(contextDoc)
-        handleContextMessage(contextDoc.data(), msg)
+        await handleContextMessage(contextDoc.data(), msg)
+    } else {
+        await bot.sendMessage(msg.chat.id, 'Not sure what you mean')
     }
-
-    console.log(msg)
-    bot.sendMessage(msg.chat.id, 'I am alive!')
-        .catch(err => console.log(err))
 })
 
 exports.webhook = functions.region('europe-west3').https.onRequest((req, res) => {
