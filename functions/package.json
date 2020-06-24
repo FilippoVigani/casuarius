@@ -15,7 +15,7 @@
   "main": "lib/index.js",
   "dependencies": {
     "@types/node-telegram-bot-api": "^0.40.3",
-    "firebase-admin": "^8.10.0",
+    "firebase-admin": "^8.12.1",
     "firebase-functions": "^3.6.1",
     "node-telegram-bot-api": "^0.50.0",
     "telegraf": "^3.38.0",

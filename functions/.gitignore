@@ -6,3 +6,6 @@
 typings/
 
 node_modules/
+
+# Env variables/config
+./serviceAccountKey.json
