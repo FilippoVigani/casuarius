@@ -5,7 +5,7 @@ import admin = require('firebase-admin')
 //Initialize database manually since automatic Google Credentials retrieval doesn't work. See https://stackoverflow.com/questions/58127896/error-could-not-load-the-default-credentials-firebase-function-to-firestore
 var serviceAccount = require("../serviceAccountKey.json")
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 })
 
 const db = admin.firestore()
@@ -33,29 +33,62 @@ bot.onText(new RegExp(/\/start/), (msg: TelegramBot.Message) => {
     ).catch(err => console.log(err))
 })
 
-bot.onText(new RegExp(/\/create/), async (msg: TelegramBot.Message) => {
+bot.onText(new RegExp(/^\/create(?:\s*)(.*)?$/), async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
     const contextRef = db.collection('contexts').doc(msg.chat.id.toString())
 
-    await contextRef.set({
-        context: 'create-domain',
-        scope: 'domain-handle-requested'
-    })
-    
-    await bot.sendMessage(msg.chat.id, `I need an handle for your domain, a text with only lowercase letters or digits, for example "pluto42". Type /cancel if you changed your mind. What's it going to be?`)
+    const handle = match && match[1]
+
+    if (handle) {
+        await createDomain(handle, msg)
+    } else {
+        await contextRef.set({
+            context: 'create-domain',
+            scope: 'domain-handle-requested'
+        })
+
+        await bot.sendMessage(msg.chat.id, `I need an handle for your domain, a text with only lowercase letters or digits, for example "pluto42". Type /cancel if you changed your mind. What's it going to be?`)
+    }
 })
 
 
 bot.onText(new RegExp(/\/cancel/), async (msg: TelegramBot.Message) => {
-    const contextRef = db.collection('contexts').doc(msg.chat.id.toString())
+    resetContext(msg.chat.id)
 
-    await contextRef.delete()
-    
     await bot.sendMessage(msg.chat.id, `I'm right here if you need anything.`)
 })
 
+const domainRegEx = new RegExp(/^[a-z0-9]*$/)
 
-async function handleContextMessage(context: any, msg: TelegramBot.Message){
+async function createDomain(handle: string | undefined, srcMsg: TelegramBot.Message) {
+    if (!handle || !domainRegEx.test(handle)) {
+        await bot.sendMessage(srcMsg.chat.id, `Invalid domain handle. Please retry.`)
+    } else {
+        const domainRef = db.collection('domains').doc(handle)
+        if ((await domainRef.get()).exists) {
+            await bot.sendMessage(srcMsg.chat.id, `Domain already exists. Please retry with a different handle.`)
+        } else {
+            await domainRef.set({
+                admin: srcMsg.from?.id || srcMsg.chat.id
+            })
+            await resetContext(srcMsg.chat.id)
+            await bot.sendMessage(srcMsg.chat.id, `Domain '${handle}' successfully created!`)
+        }
+    }
+}
+
+async function handleContextMessage(context: any, msg: TelegramBot.Message) {
+    if (context.context == 'create-domain') {
+        if (context.scope == 'domain-handle-requested') {
+            createDomain(msg.text, msg)
+        }
+    }
     console.log(context)
+}
+
+async function resetContext(chatId: number){
+    const contextRef = db.collection('contexts').doc(chatId.toString())
+
+    await contextRef.delete()
 }
 
 //Only match messages that are not commands
@@ -64,7 +97,7 @@ bot.onText(new RegExp(/^[^\/].*/), async (msg: TelegramBot.Message, metadata) =>
 
     const contextDoc = await contextRef.get()
 
-    if (contextDoc.exists){
+    if (contextDoc.exists) {
         await handleContextMessage(contextDoc.data(), msg)
     } else {
         await bot.sendMessage(msg.chat.id, 'Not sure what you mean')
@@ -76,16 +109,18 @@ exports.webhook = functions.region('europe-west3').https.onRequest((req, res) =>
         res.status(401).send("Invalid telegram bot token")
     } else {
         const url: string = req.query.url || functions.config().bot.url
-        try {
-            const success = bot.setWebHook(url)
-            if (success)
-                res.send(`Webhook set to ${url}`)
-            else
-                res.send(`Failed setting webhook to ${url}`)
-        } catch (error) {
-            console.log(error)
-            res.status(500).send(`Failed setting webhook to ${url}`)
-        }
+        bot.setWebHook(url)
+            .then(success => {
+                if (success)
+                    res.send(`Webhook set to ${url}`)
+                else
+                    res.send(`Failed setting webhook to ${url}`)
+            })
+            .catch(error => {
+                console.log(error)
+                res.status(500).send(`Failed setting webhook to ${url}`)
+            })
+
     }
 })
 

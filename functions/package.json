@@ -6,6 +6,7 @@
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
+    "forward": "ngrok http 5001",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
@@ -18,7 +19,6 @@
     "firebase-admin": "^8.12.1",
     "firebase-functions": "^3.6.1",
     "node-telegram-bot-api": "^0.50.0",
-    "telegraf": "^3.38.0",
     "telegram-typings": "^4.0.0-beta"
   },
   "devDependencies": {
