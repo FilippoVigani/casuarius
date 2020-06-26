@@ -4,6 +4,7 @@ import admin = require('firebase-admin')
 import { ChatContext } from './handlers/context'
 import { CreateDomainHandler } from './handlers/create-domain'
 import { ContextManager } from './handlers/context-manager'
+import { CreateGroupHandler } from './handlers/create-group'
 
 //Initialize database manually since automatic Google Credentials retrieval doesn't work. See https://stackoverflow.com/questions/58127896/error-could-not-load-the-default-credentials-firebase-function-to-firestore
 const serviceAccount = require("../serviceAccountKey.json")
@@ -17,13 +18,14 @@ const token: string = functions.config().bot.token
 
 const bot = new TelegramBot(token)
 
-const contextManager = new ContextManager(firestore)
+const contextManager = new ContextManager<ChatContext | any>(firestore)
 
 const handlers = [
-    new CreateDomainHandler(bot, firestore, contextManager)
+    new CreateDomainHandler(bot, firestore, contextManager),
+    new CreateGroupHandler(bot, firestore, contextManager)
 ]
 
-bot.onText(new RegExp(/\/start/), async (message: TelegramBot.Message) => {
+bot.onText(new RegExp(/\/start(?:\@[\w]*Bot)?/), async (message: TelegramBot.Message) => {
     await bot.sendMessage(
         message.chat.id,
         `Welcome ${message.from?.first_name}! To get started /create or /join a domain. Once you are in a domain you will be able to target groups to forward your messages to.`,
@@ -40,7 +42,7 @@ bot.onText(new RegExp(/\/start/), async (message: TelegramBot.Message) => {
     )
 })
 
-bot.onText(new RegExp(/\/cancel/), async (message: TelegramBot.Message) => {
+bot.onText(new RegExp(/\/cancel(?:\@[\w]*Bot)?/), async (message: TelegramBot.Message) => {
     await contextManager.resetContext(message.chat.id)
 
     await bot.sendMessage(message.chat.id, `I'm right here if you need anything.`)
@@ -48,6 +50,7 @@ bot.onText(new RegExp(/\/cancel/), async (message: TelegramBot.Message) => {
 
 //Only match messages that are not commands
 bot.onText(new RegExp(/^[^\/].*/), async (message: TelegramBot.Message, metadata) => {
+    console.log('Text received: ' + message.text)
     const context = await contextManager.getContext(message.chat.id)
     if (context) {
         await handleContextMessage(context, message)
@@ -56,7 +59,7 @@ bot.onText(new RegExp(/^[^\/].*/), async (message: TelegramBot.Message, metadata
     }
 })
 
-async function handleContextMessage(context: ChatContext, message: TelegramBot.Message) {
+async function handleContextMessage(context: any, message: TelegramBot.Message) {
     console.log(context)
     const handler = handlers.find(handler => handler.contextSlug === context.context)
 

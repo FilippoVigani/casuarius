@@ -3,16 +3,21 @@ import { ContextHandler } from "./context-handler"
 import { ChatContext } from "./context"
 import { ContextManager } from "./context-manager"
 
-export class CreateDomainHandler implements ContextHandler {
+type CreateDomainChatContext = ChatContext & {
+    context: 'create-domain',
+    scope: 'domain-handle-requested'
+}
+
+export class CreateDomainHandler implements ContextHandler<CreateDomainChatContext> {
     readonly contextSlug = 'create-domain'
 
-    readonly domainRegEx = new RegExp(/^[a-z0-9]*$/)
-    readonly commandRegEx = new RegExp(/^\/create(?:\s*)(.*)?$/)
+    readonly domainRegEx = new RegExp(/^[a-z0-9]+$/)
+    readonly commandRegEx = new RegExp(/^\/create(?:\@[\w]*Bot)?(?:\s*)(.*)?$/)
 
     constructor(
         private readonly bot: TelegramBot,
         private readonly firestore: FirebaseFirestore.Firestore,
-        private readonly contextManager: ContextManager,
+        private readonly contextManager: ContextManager<CreateDomainChatContext>,
     ) {
         bot.onText(this.commandRegEx, async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
             const handle = match && match[1]
@@ -28,7 +33,7 @@ export class CreateDomainHandler implements ContextHandler {
         })
     }
 
-    async handleContext(context: ChatContext, message: TelegramBot.Message) {
+    async handleContext(context: CreateDomainChatContext, message: TelegramBot.Message) {
         if (context.scope === 'domain-handle-requested') {
             await this.handle(message.from?.id, message.chat.id, message.text)
         }
@@ -43,16 +48,16 @@ export class CreateDomainHandler implements ContextHandler {
                 if ((await domainRef.get()).exists) {
                     await this.bot.sendMessage(chatId, `Domain already exists. Please retry with a different handle.`)
                 } else {
+                    await this.contextManager.resetContext(chatId)
                     await domainRef.set({
                         admin: adminId || chatId
                     })
-                    await this.contextManager.resetContext(chatId)
                     await this.bot.sendMessage(chatId, `Domain '${domainHandle}' successfully created!`)
                 }
             }
         } else {
             await this.contextManager.setContext(chatId, {
-                context: 'create-domain',
+                context: this.contextSlug,
                 scope: 'domain-handle-requested'
             })
 

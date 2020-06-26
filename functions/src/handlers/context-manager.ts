@@ -1,9 +1,9 @@
 import { ChatContext } from "./context"
 
-export class ContextManager {
+export class ContextManager<T extends ChatContext> {
     constructor(private firestore: FirebaseFirestore.Firestore) { }
 
-    async setContext(chatId: number, context: ChatContext) {
+    async setContext(chatId: number, context: T) {
         const contextRef = this.firestore.collection('contexts').doc(chatId.toString())
         await contextRef.set(context)
     }
@@ -13,9 +13,9 @@ export class ContextManager {
         await contextRef.delete()
     }
 
-    async getContext(chatId: number): Promise<ChatContext | undefined> {
+    async getContext(chatId: number): Promise<T | undefined> {
         const contextRef = this.firestore.collection('contexts').doc(chatId.toString())
         const contextDoc = await contextRef.get()
-        return contextDoc.data() as ChatContext | undefined
+        return contextDoc.data() as T | undefined
     }
 }

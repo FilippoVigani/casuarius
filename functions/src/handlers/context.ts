@@ -1,4 +1,4 @@
-export interface ChatContext{
+export type ChatContext = {
     context: string,
     scope: string
 }
