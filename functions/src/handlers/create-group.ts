@@ -21,7 +21,7 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
         private readonly contextManager: ContextManager<CreateGroupChatContext>,
     ) {
         bot.onText(this.commandRegEx, async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
-            this.handle(msg.from?.id, msg.chat.id)
+            this.handle(msg.from, msg.chat.id)
         })
     }
 
@@ -71,38 +71,42 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
         }
     }
 
-    async handle(adminId: number | undefined, chatId: number) {
-        const domainsRef = this.firestore.collection('domains').where('admin', '==', adminId || chatId)
-        const domainsSnapshot = await domainsRef.get()
-
-        const domains = domainsSnapshot.docs.map(doc => {
-            return { handle: doc.id, ...doc.data() }
-        })
-
-        if (domains.length == 0) {
-            await this.bot.sendMessage(chatId, `You need to have created a domain first in order to create a group in it.`)
-        } else if (domains.length == 1) {
-            await this.contextManager.setContext(chatId, {
-                context: 'create-group',
-                scope: 'group-handle-requested',
-                domainHandle: domains[0].handle
-            })
-            await this.bot.sendMessage(chatId, `Great! I am creating a group in the domain '${domains[0].handle}', please type an handle for it.`)
+    async handle(admin: TelegramBot.User | undefined, chatId: number) {
+        if (!admin){
+            await this.bot.sendMessage(chatId, `I can't create a group from a channel. Please text me in private.`)
         } else {
-            await this.contextManager.setContext(chatId, <CreateGroupChatContext>{
-                context: 'create-group',
-                scope: 'domain-handle-requested',
-                domainHandle: null
+            const domainsRef = this.firestore.collection('domains').where('admin.id', '==', admin.id)
+            const domainsSnapshot = await domainsRef.get()
+    
+            const domains = domainsSnapshot.docs.map(doc => {
+                return { handle: doc.id, ...doc.data() }
             })
-
-            await this.bot.sendMessage(chatId, `It looks like you are the admin of several domains. Please choose the one you wish to create this group in.`, {
-                reply_markup: {
-                    one_time_keyboard: true,
-                    keyboard: domains.map(domain => {
-                        return [<TelegramBot.KeyboardButton>{ text: domain.handle }]
-                    })
-                }
-            })
+    
+            if (domains.length == 0) {
+                await this.bot.sendMessage(chatId, `You need to have created a domain first in order to create a group in it.`)
+            } else if (domains.length == 1) {
+                await this.contextManager.setContext(chatId, {
+                    context: 'create-group',
+                    scope: 'group-handle-requested',
+                    domainHandle: domains[0].handle
+                })
+                await this.bot.sendMessage(chatId, `Great! I am creating a group in the domain '${domains[0].handle}', please type an handle for it.`)
+            } else {
+                await this.contextManager.setContext(chatId, <CreateGroupChatContext>{
+                    context: 'create-group',
+                    scope: 'domain-handle-requested',
+                    domainHandle: null
+                })
+    
+                await this.bot.sendMessage(chatId, `It looks like you are the admin of several domains. Please choose the one you wish to create this group in.`, {
+                    reply_markup: {
+                        one_time_keyboard: true,
+                        keyboard: domains.map(domain => {
+                            return [<TelegramBot.KeyboardButton>{ text: domain.handle }]
+                        })
+                    }
+                })
+            }
         }
     }
 }

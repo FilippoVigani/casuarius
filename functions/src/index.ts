@@ -5,6 +5,7 @@ import { ChatContext } from './handlers/context'
 import { CreateDomainHandler } from './handlers/create-domain'
 import { ContextManager } from './handlers/context-manager'
 import { CreateGroupHandler } from './handlers/create-group'
+import { JoinDomainHandler } from './handlers/join-domain'
 
 //Initialize database manually since automatic Google Credentials retrieval doesn't work. See https://stackoverflow.com/questions/58127896/error-could-not-load-the-default-credentials-firebase-function-to-firestore
 const serviceAccount = require("../serviceAccountKey.json")
@@ -22,7 +23,8 @@ const contextManager = new ContextManager<ChatContext | any>(firestore)
 
 const handlers = [
     new CreateDomainHandler(bot, firestore, contextManager),
-    new CreateGroupHandler(bot, firestore, contextManager)
+    new CreateGroupHandler(bot, firestore, contextManager),
+    new JoinDomainHandler(bot, firestore, contextManager)
 ]
 
 bot.onText(new RegExp(/\/start(?:\@[\w]*Bot)?/), async (message: TelegramBot.Message) => {
@@ -33,8 +35,8 @@ bot.onText(new RegExp(/\/start(?:\@[\w]*Bot)?/), async (message: TelegramBot.Mes
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: "Create a new domain", callback_data: "create-domain" },
-                        { text: "Join an existing domain", callback_data: "join-domain" }
+                        { text: `Create a new domain`, callback_data: `/create` },
+                        { text: `Join an existing domain`, callback_data: `/join` }
                     ]
                 ]
             }
