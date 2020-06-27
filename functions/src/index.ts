@@ -75,7 +75,7 @@ bot.onText(new RegExp(/\/cancel(?:\@[\w]*Bot)?/), async (message: TelegramBot.Me
 const nonCommandRegex = new RegExp(/^[^\/].*/)
 //Only match messages that are not commands
 bot.on('message', async (message: TelegramBot.Message, metadata) => {
-    if (nonCommandRegex.test(message.text || '')) {
+    if (!message.text || nonCommandRegex.test(message.text)) {
         const context = await contextManager.getContext(message.chat.id)
         if (context) {
             await handleContextMessage(context, message)

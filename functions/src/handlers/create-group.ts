@@ -60,8 +60,9 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
                     await this.contextManager.resetContext(message.chat.id)
 
                     await groupRef.set({
-                        'domain': context.domainHandle,
-                        'chatId': message.chat.id
+                        domain: context.domainHandle,
+                        chatId: message.chat.id,
+                        name: message.chat.title || null
                     })
 
                     await this.bot.sendMessage(message.chat.id, `Super! Now members of the domain '${context.domainHandle}', will be able to send messages here with the handle '${groupHandle}'.`)

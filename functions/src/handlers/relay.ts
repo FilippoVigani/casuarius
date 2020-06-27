@@ -99,14 +99,14 @@ export class RelayHandler implements ContextHandler<RelayChatContext> {
                 {
                     chat_id: from.id,
                     message_id: message.message_id
-                }).catch(err => {})
+                }).catch()
             await this.bot.editMessageReplyMarkup(
                 { inline_keyboard: [[]] },
                 {
                     chat_id: from.id,
                     message_id: message.message_id
                 }
-            ).catch(err => {})
+            ).catch()
         }
     }
 
