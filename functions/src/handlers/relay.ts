@@ -94,19 +94,20 @@ export class RelayHandler implements ContextHandler<RelayChatContext> {
         }
 
         if (message) {
-            await this.bot.editMessageText(
-                `Message forwarded${group ? ` to ${group.name} (${group.domain})` : ``}.`,
-                {
-                    chat_id: from.id,
-                    message_id: message.message_id
-                }).catch()
             await this.bot.editMessageReplyMarkup(
                 { inline_keyboard: [[]] },
                 {
                     chat_id: from.id,
                     message_id: message.message_id
                 }
-            ).catch()
+            ).catch(error => { console.log(error) })
+            await this.bot.editMessageText(
+                `Message forwarded${group ? ` to ${group.name} (${group.domain})` : ``}.`,
+                {
+                    chat_id: from.id,
+                    message_id: message.message_id
+                }
+            ).catch(error => { console.log(error) })
         }
     }
 

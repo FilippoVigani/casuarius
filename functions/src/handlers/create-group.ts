@@ -62,7 +62,7 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
                     await groupRef.set({
                         domain: context.domainHandle,
                         chatId: message.chat.id,
-                        name: message.chat.title || null
+                        name: message.chat.title || (message.from ? this.getUserDescriptor(message.from) : null)
                     })
 
                     await this.bot.sendMessage(message.chat.id, `Super! Now members of the domain '${context.domainHandle}', will be able to send messages here with the handle '${groupHandle}'.`)
@@ -109,5 +109,9 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
                 })
             }
         }
+    }
+
+    private getUserDescriptor(user: TelegramBot.User): string {
+        return `${user.first_name}${user.last_name ? ` ${user.last_name}` : ``}${user.username ? ` (@${user.username})` : ``}`
     }
 }
