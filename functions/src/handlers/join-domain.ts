@@ -138,7 +138,7 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
                         chat_id: admin.id,
                         message_id: message.message_id
                     }
-                )
+                ).catch(err => {})
             }
         } else {
             await this.bot.sendMessage(admin.id, `Either the domain '${domainHandle}' doesn't exist or you are not an admin. You can only approve requests for a domain you are an admin of.`)
@@ -177,7 +177,7 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
                         chat_id: admin.id,
                         message_id: message.message_id
                     }
-                )
+                ).catch(err => {})
             }
         } else {
             await this.bot.sendMessage(admin.id, `Either the domain '${domainHandle}' doesn't exist or you are not an admin. You can only approve requests for a domain you are an admin of.`)

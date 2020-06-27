@@ -64,7 +64,7 @@ To control me, you can send me the following commands:
 /group When inside a group, creates a new group messages can be forwarded to
 /cancel Cancels the current operation`
     )
-    })
+})
 
 bot.onText(new RegExp(/\/cancel(?:\@[\w]*Bot)?/), async (message: TelegramBot.Message) => {
     await contextManager.resetContext(message.chat.id)
@@ -72,13 +72,16 @@ bot.onText(new RegExp(/\/cancel(?:\@[\w]*Bot)?/), async (message: TelegramBot.Me
     await bot.sendMessage(message.chat.id, `I'm right here if you need anything.`)
 })
 
+const nonCommandRegex = new RegExp(/^[^\/].*/)
 //Only match messages that are not commands
-bot.onText(new RegExp(/^[^\/].*/), async (message: TelegramBot.Message, metadata) => {
-    const context = await contextManager.getContext(message.chat.id)
-    if (context) {
-        await handleContextMessage(context, message)
-    } else {
-        await relayHandler.handle(message)
+bot.on('message', async (message: TelegramBot.Message, metadata) => {
+    if (nonCommandRegex.test(message.text || '')) {
+        const context = await contextManager.getContext(message.chat.id)
+        if (context) {
+            await handleContextMessage(context, message)
+        } else {
+            await relayHandler.handle(message)
+        }
     }
 })
 
