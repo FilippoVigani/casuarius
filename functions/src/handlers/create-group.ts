@@ -21,7 +21,7 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
         private readonly contextManager: ContextManager<CreateGroupChatContext>,
     ) {
         bot.onText(this.commandRegEx, async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
-            this.handle(msg.from, msg.chat.id)
+            await this.handle(msg.from, msg.chat.id)
         })
     }
 
@@ -34,7 +34,7 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
 
                 const domain = domainDoc.data()
 
-                if (domain && domain.admin === message.from?.id) {
+                if (domain && domain.admin.id === message.from?.id) {
                     await this.contextManager.setContext(message.chat.id, {
                         context: 'create-group',
                         scope: 'group-handle-requested',
@@ -82,9 +82,9 @@ export class CreateGroupHandler implements ContextHandler<CreateGroupChatContext
                 return { handle: doc.id, ...doc.data() }
             })
     
-            if (domains.length == 0) {
+            if (domains.length === 0) {
                 await this.bot.sendMessage(chatId, `You need to have created a domain first in order to create a group in it.`)
-            } else if (domains.length == 1) {
+            } else if (domains.length === 1) {
                 await this.contextManager.setContext(chatId, {
                     context: 'create-group',
                     scope: 'group-handle-requested',

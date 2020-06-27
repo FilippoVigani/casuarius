@@ -12,9 +12,9 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
     readonly contextSlug = 'join-domain'
 
     readonly domainRegEx = new RegExp(/^[a-z0-9]+$/)
-    readonly joinCommandRegEx = new RegExp(/^\/join(?:\@[\w]*Bot)?(?:\s*)(.*)?$/)
-    readonly approveCommandRegEx = new RegExp(/^\/approve(?:\@[\w]*Bot)?(?:\s*)([0-9\-]*)(?:\s*)(.*)$/)
-    readonly denyCommandRegEx = new RegExp(/^^\/deny(?:\@[\w]*Bot)?(?:\s*)([0-9\-]*)(?:\s*)(.*)$/)
+    readonly joinCommandRegEx = new RegExp(/^\/join(?:\@[\w]*Bot)?(?:\s*)([a-z0-9]+)?$/)
+    readonly approveCommandRegEx = new RegExp(/^\/approve(?:\@[\w]*Bot)?(?:\s*)([0-9\-]+)(?:\s*)([a-z0-9]+)$/)
+    readonly denyCommandRegEx = new RegExp(/^^\/deny(?:\@[\w]*Bot)?(?:\s*)([0-9\-]+)(?:\s*)([a-z0-9]+)$/)
 
     constructor(
         private readonly bot: TelegramBot,
@@ -24,23 +24,19 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
         bot.onText(this.joinCommandRegEx, async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
             const handle = match && match[1]
 
-            this.handle(msg.from, msg.chat.id, handle)
+            await this.handle(msg.from, msg.chat.id, handle)
         })
 
         bot.on("callback_query", async (query) => {
-            console.log(query)
             const data = query.data || ''
 
-            const joinMatch = this.joinCommandRegEx.exec(data)
             const approveMatch = this.approveCommandRegEx.exec(data)
             const denyMatch = this.denyCommandRegEx.exec(data)
 
-            if (joinMatch) {
-                await this.handle(query.from, query.message?.chat.id || query.from.id)
-            } else if (approveMatch) {
-                await this.approve(query.from, parseInt(approveMatch[1]), approveMatch[2])
+            if (approveMatch) {
+                await this.approve(query.from, query.message, parseInt(approveMatch[1]), approveMatch[2])
             } else if (denyMatch) {
-                await this.deny(query.from, parseInt(denyMatch[1]), denyMatch[2])
+                await this.deny(query.from, query.message, parseInt(denyMatch[1]), denyMatch[2])
             }
         })
     }
@@ -64,7 +60,7 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
                     const domain = (await domainRef.get()).data()
 
                     if (domain) {
-                        const userInMembers = (domain.members || []).find((u: TelegramBot.User) => user.id === u.id)
+                        const userInMembers = (domain.membersIds || []).find((id: number) => user.id === id)
                         if (userInMembers) {
                             await this.bot.sendMessage(chatId, `You are already part of the domain ${domainHandle}.`)
                         } else {
@@ -107,12 +103,11 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
 
     }
 
-    private async approve(admin: TelegramBot.User, userId: number, domainHandle: string) {
+    private async approve(admin: TelegramBot.User, message: TelegramBot.Message | undefined, userId: number, domainHandle: string) {
         const domainRef = this.firestore.collection('domains').doc(domainHandle)
         const domain = (await domainRef.get()).data()
 
         if (domain && domain.admin.id === admin.id) {
-
             const userInMembers = (domain.members || []).find((user: TelegramBot.User) => user.id === userId)
 
             if (userInMembers) {
@@ -124,40 +119,65 @@ export class JoinDomainHandler implements ContextHandler<JoinDomainChatContext> 
                     await this.bot.sendMessage(admin.id, `The request for this user is not longer valid. Please ask them to join again.`)
                 } else {
                     await domainRef.set({
-                        waitlist: domain.waitlist.filter((user: TelegramBot.User) => user.id !== userId),
-                        members: [...(new Set(domain.members).add(userInWaitlist))]
+                        waitlist: (domain.waitlist || []).filter((user: TelegramBot.User) => user.id !== userId),
+                        members: [...(new Set(domain.members).add(userInWaitlist))],
+                        membersIds: [...(new Set(domain.membersIds).add(userInWaitlist.id))]
                     }, { merge: true })
                     await this.bot.sendMessage(admin.id, `${this.getUserDescriptor(userInWaitlist)} is now a part of the domain '${domainHandle}'.`)
                 }
+            }
+            if (message) {
+                await this.bot.editMessageReplyMarkup({
+                    inline_keyboard: [
+                        [
+                            { text: "Kick", callback_data: `/deny ${userId} ${domainHandle}` }
+                        ]
+                    ]
+                },
+                    {
+                        chat_id: admin.id,
+                        message_id: message.message_id
+                    }
+                )
             }
         } else {
             await this.bot.sendMessage(admin.id, `Either the domain '${domainHandle}' doesn't exist or you are not an admin. You can only approve requests for a domain you are an admin of.`)
         }
     }
 
-    private async deny(admin: TelegramBot.User, userId: number, domainHandle: string) {
+    private async deny(admin: TelegramBot.User, message: TelegramBot.Message | undefined, userId: number, domainHandle: string) {
         const domainRef = this.firestore.collection('domains').doc(domainHandle)
         const domain = (await domainRef.get()).data()
 
         if (domain && domain.admin.id === admin.id) {
 
-            const userInMembers = (domain.members || []).find((user: TelegramBot.User) => user.id === userId)
-            const userInWaitlist = (domain.waitlist || []).find((user: TelegramBot.User) => user.id === userId)
+            const userInMembers = (domain.members || []).find((u: TelegramBot.User) => u.id === userId)
+            const userInWaitlist = (domain.waitlist || []).find((u: TelegramBot.User) => u.id === userId)
 
             const user = userInMembers || userInWaitlist
 
             if (!user) {
                 await this.bot.sendMessage(admin.id, `The request for this user is not longer valid.`)
             } else {
-                domainRef.set({
-                    waitlist: domain.waitlist.filter((user: TelegramBot.User) => user.id !== userId),
-                    members: domain.members.filter((user: TelegramBot.User) => user.id !== userId)
+                await domainRef.set({
+                    waitlist: (domain.waitlist || []).filter((u: TelegramBot.User) => u.id !== userId),
+                    members: (domain.members || []).filter((u: TelegramBot.User) => u.id !== userId),
+                    membersIds: (domain.membersIds || []).filter((id: number) => id !== userId)
                 }, { merge: true })
                 if (userInMembers) {
-                    this.bot.sendMessage(admin.id, `${this.getUserDescriptor(user)} has been kicked from the domain '${domainHandle}'.`)
+                    await this.bot.sendMessage(admin.id, `${this.getUserDescriptor(user)} has been kicked from the domain '${domainHandle}'.`)
                 } else if (userInWaitlist) {
-                    this.bot.sendMessage(admin.id, `${this.getUserDescriptor(user)} has been denied from joining the domain '${domainHandle}'.`)
+                    await this.bot.sendMessage(admin.id, `${this.getUserDescriptor(user)} has been denied from joining the domain '${domainHandle}'.`)
                 }
+            }
+            if (message) {
+                await this.bot.editMessageReplyMarkup(
+                    { inline_keyboard: [[]] },
+                    {
+                        chat_id: admin.id,
+                        message_id: message.message_id
+                    }
+                )
             }
         } else {
             await this.bot.sendMessage(admin.id, `Either the domain '${domainHandle}' doesn't exist or you are not an admin. You can only approve requests for a domain you are an admin of.`)

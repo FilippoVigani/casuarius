@@ -22,11 +22,10 @@ export class CreateDomainHandler implements ContextHandler<CreateDomainChatConte
         bot.onText(this.commandRegEx, async (msg: TelegramBot.Message, match: RegExpExecArray | null) => {
             const handle = match && match[1]
 
-            this.handle(msg.from, msg.chat.id, handle)
+            await this.handle(msg.from, msg.chat.id, handle)
         })
 
         bot.on("callback_query", async (query) => {
-            console.log(query)
             if (query.data === `/create`) {
                 await this.handle(query.from, query.message?.chat.id || query.from.id)
             }
